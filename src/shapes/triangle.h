@@ -93,6 +93,12 @@ class Triangle : public Shape {
     // reference point p.
     Float SolidAngle(const Point3f &p, int nSamples = 0) const;
 
+
+	/* * * * * PROGRAM 2 ASSIGNMENT * * * * */
+	std::shared_ptr<TriangleMesh> mesh;
+    bool SupportsSubdivision() const;
+    std::vector<std::shared_ptr<Shape> > Subdivide(const float &, const int&);
+
   private:
     // Triangle Private Methods
     void GetUVs(Point2f uv[3]) const {
@@ -108,7 +114,6 @@ class Triangle : public Shape {
     }
 
     // Triangle Private Data
-    std::shared_ptr<TriangleMesh> mesh;
     const int *v;
     int faceIndex;
 };

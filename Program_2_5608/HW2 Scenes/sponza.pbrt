@@ -1,0 +1,24 @@
+Accelerator "bvh"
+
+LookAt -7 0 .5   4 -7 6 0 0 1
+Scale -1 1 1
+
+Camera "perspective" "float fov" [60 ]
+Film "image"  "integer xresolution" [800 ] "integer yresolution" [800 ]
+    "string filename" "sponza.exr"
+
+Sampler "lowdiscrepancy" "integer pixelsamples" [32]
+
+WorldBegin
+
+AttributeBegin
+AreaLightSource "area" "color L" [12 12 14 ] "integer nsamples" [15]
+ReverseOrientation
+Material "matte" "color Kd" [0 0 0 ]
+Shape "disk" "float radius" [75] "float height" [64]
+AttributeEnd
+
+Rotate 45 1 0 0
+Include "geometry/sponzageom.pbrt"
+
+WorldEnd

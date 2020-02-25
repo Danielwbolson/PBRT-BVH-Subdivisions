@@ -86,6 +86,11 @@ class Shape {
     const Transform *ObjectToWorld, *WorldToObject;
     const bool reverseOrientation;
     const bool transformSwapsHandedness;
+
+
+	/* * * * * PROGRAM 2 ASSIGNMENT * * * * */
+    virtual bool SupportsSubdivision() const;
+    virtual std::vector<std::shared_ptr<Shape> > Subdivide(const float&, const int&);
 };
 
 }  // namespace pbrt

@@ -101,4 +101,13 @@ Float Shape::SolidAngle(const Point3f &p, int nSamples) const {
     return solidAngle / nSamples;
 }
 
+	/* * * * * PROGRAM 2 ASSIGNMENT * * * * */
+bool Shape::SupportsSubdivision() const { 
+	return false; 
+}
+
+std::vector<std::shared_ptr<Shape>> Shape::Subdivide(const float &, const int&) { 
+	return std::vector<std::shared_ptr<Shape> >();
+}
+
 }  // namespace pbrt
