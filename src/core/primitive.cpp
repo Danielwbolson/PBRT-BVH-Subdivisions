@@ -42,7 +42,7 @@ namespace pbrt {
 STAT_MEMORY_COUNTER("Memory/Primitives", primitiveMemory);
 
 // Primitive Method Definitions
-Primitive::~Primitive() {}
+Primitive::~Primitive() { primitiveMemory -= sizeof(*this); }
 const AreaLight *Aggregate::GetAreaLight() const {
     LOG(FATAL) <<
         "Aggregate::GetAreaLight() method"

@@ -1093,7 +1093,6 @@ static void parse(std::unique_ptr<Tokenizer> t) {
 
 void pbrtParseFile(std::string filename) {
     if (filename != "-") SetSearchDirectory(DirectoryContaining(filename));
-
     auto tokError = [](const char *msg) { Error("%s", msg); exit(1); };
     std::unique_ptr<Tokenizer> t =
         Tokenizer::CreateFromFile(filename, tokError);

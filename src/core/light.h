@@ -105,6 +105,7 @@ class VisibilityTester {
 
 class AreaLight : public Light {
   public:
+
     // AreaLight Interface
     AreaLight(const Transform &LightToWorld, const MediumInterface &medium,
               int nSamples);

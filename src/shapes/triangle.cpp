@@ -747,6 +747,7 @@ std::vector<std::shared_ptr<Shape>> CreateTriangleMeshShape(
 bool Triangle::SupportsSubdivision() const { 
 	return true;
 }
+
 std::vector<std::shared_ptr<Shape> > Triangle::Subdivide(
     const float &threshold, const int &offset) { 
 
@@ -783,63 +784,83 @@ std::vector<std::shared_ptr<Shape> > Triangle::Subdivide(
 
 	if (v0 > v1 && v0 > v2) {
 		midpoint = (p0 + p1) / 2.0f;
+        indices = new int[6]{0, 3, 2, 2, 3, 1};
+        max = v0;
+
         if (mesh->s) 
 			midS = (mesh->s[index0] + mesh->s[index1]) / 2.0f;
-        if (mesh->n)
-            midNormal = (mesh->n[index0] + mesh->n[index1]) / 2.0f;
+        if (mesh->n) 
+            midNormal = Normalize((mesh->n[index0] + mesh->n[index1]) / 2.0f);
         if (mesh->uv) 
 			midUV = (mesh->uv[index0] + mesh->uv[index1]) / 2.0f;
-		max = v0;
-        indices = new int [6] {0, 3, 2, 2, 3, 1};
+
 	} else if (v1 > v0 && v1 > v2) {
 		midpoint = (p0 + p2) / 2.0f;
+        indices = new int[6]{0, 1, 3, 3, 1, 2};
+        max = v1;
+
         if (mesh->s) 
 			midS = (mesh->s[index0] + mesh->s[index2]) / 2.0f;
         if (mesh->n) 
-			midNormal = (mesh->n[index0] + mesh->n[index2]) / 2.0f;
+            midNormal = Normalize((mesh->n[index0] + mesh->n[index2]) / 2.0f);
         if (mesh->uv) 
 			midUV = (mesh->uv[index0] + mesh->uv[index2]) / 2.0f;
-        max = v1;
-        indices = new int[6] {0, 1, 3, 3, 1, 2};
+
 	} else if (v2 > v0 && v2 > v1) {
+
 		midpoint = (p1 + p2) / 2.0f;
+        indices = new int[6]{0, 1, 3, 3, 2, 0};
+        max = v2;
+
         if (mesh->s) 
 			midS = (mesh->s[index1] + mesh->s[index2]) / 2.0f;
         if (mesh->n) 
-			midNormal = (mesh->n[index1] + mesh->n[index2]) / 2.0f;
-        if (mesh->uv) 
+			midNormal = Normalize((mesh->n[index1] + mesh->n[index2]) / 2.0f);
+		if (mesh->uv) 
 			midUV = (mesh->uv[index1] + mesh->uv[index2]) / 2.0f;
-        max = v2;
-        indices = new int[6] {0, 1, 3, 3, 2, 0};
 	}
 
 	if (max > threshold) {
-            verts = new Point3f[4]{p0, p1, p2, midpoint};
+        p0 = (*WorldToObject)(p0);
+        p1 = (*WorldToObject)(p1);
+        p2 = (*WorldToObject)(p2);
+        midpoint = (*WorldToObject)(midpoint);
+        verts = new Point3f[4]{p0, p1, p2, midpoint};
 
-            if (mesh->n)
-                normals = new Normal3f[4]{mesh->n[index0], mesh->n[index1],
-                                          mesh->n[index2], midNormal};
-            if (mesh->s)
-                S = new Vector3f[4]{mesh->s[index0], mesh->s[index1],
-                                    mesh->s[index2], midS};
-            if (mesh->uv)
-                uvs = new Point2f[4]{mesh->uv[index0], mesh->uv[index1],
-                                     mesh->uv[index2], midUV};
+        if (mesh->n)
+            normals = new Normal3f[4]{mesh->n[index0], mesh->n[index1],
+                                        mesh->n[index2], midNormal};
+        if (mesh->s)
+            S = new Vector3f[4]{mesh->s[index0], mesh->s[index1],
+                                mesh->s[index2], midS};
+        if (mesh->uv)
+            uvs = new Point2f[4]{mesh->uv[index0], mesh->uv[index1],
+                                    mesh->uv[index2], midUV};
 
-            std::vector<std::shared_ptr<Shape>> newTris =
-                CreateTriangleMesh(ObjectToWorld, WorldToObject, false, 2,
-                                   indices, 6, verts, S, normals, uvs, mesh->alphaMask, mesh->shadowAlphaMask);
+		std::vector<std::shared_ptr<Shape>> newTris = CreateTriangleMesh(
+            ObjectToWorld, WorldToObject, false, 2, indices, 6, verts, S,
+            normals, uvs, mesh->alphaMask, mesh->shadowAlphaMask);
 
-		for (int i = 0; i < newTris.size(); i++) {
-            subTris = newTris[i]->Subdivide(threshold, 0);
-            tris.insert(tris.begin(), subTris.begin(), subTris.end());
+		for (int i = newTris.size() - 1; i >= 0; i--) {
+            subTris = newTris[i]->Subdivide(threshold, i * 3);
+			if (subTris.size() > 0) {
+                auto it = newTris.begin();
+                std::advance(it, i);
+                newTris.erase(it);
+
+				tris.insert(tris.end(), subTris.begin(), subTris.end());
+			}
 		}
+
+		tris.insert(tris.end(), newTris.begin(), newTris.end());
 
 	} else {
         return std::vector<std::shared_ptr<Shape>>();    
 	}
-	
-	
+
+	for (auto t : tris) {
+		t->subdivided = true;
+	}
 	return tris; 
 }
 

@@ -80,6 +80,7 @@ class GeometricPrimitive : public Primitive {
                                     MemoryArena &arena, TransportMode mode,
                                     bool allowMultipleLobes) const;
 
+
   private:
     // GeometricPrimitive Private Data
     std::shared_ptr<Shape> shape;

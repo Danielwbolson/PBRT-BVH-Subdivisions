@@ -35,6 +35,11 @@
 #pragma once
 #endif
 
+
+#define PROGRAM_2_ASSIGNMENT
+//#define SPACESHIP
+
+
 #ifndef PBRT_CORE_API_H
 #define PBRT_CORE_API_H
 
@@ -90,6 +95,9 @@ void pbrtWorldEnd();
 
 void pbrtParseFile(std::string filename);
 void pbrtParseString(std::string str);
+
+/* * * * * * PROGRAM 2 ASSIGNMENT * * * * */
+void SubdivideTriangles(std::vector<std::string>);
 
 }  // namespace pbrt
 

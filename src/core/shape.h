@@ -91,6 +91,7 @@ class Shape {
 	/* * * * * PROGRAM 2 ASSIGNMENT * * * * */
     virtual bool SupportsSubdivision() const;
     virtual std::vector<std::shared_ptr<Shape> > Subdivide(const float&, const int&);
+    bool subdivided = false;
 };
 
 }  // namespace pbrt

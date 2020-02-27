@@ -185,6 +185,13 @@ BVHAccel::BVHAccel(std::vector<std::shared_ptr<Primitive>> p,
     : maxPrimsInNode(std::min(255, maxPrimsInNode)),
       splitMethod(splitMethod),
       primitives(std::move(p)) {
+
+	treeBytes = 0;
+    totalPrimitives = 0;
+    totalLeafNodes = 0;
+    interiorNodes = 0;
+    leafNodes = 0;
+
     ProfilePhase _(Prof::AccelConstruction);
     if (primitives.empty()) return;
     // Build BVH from _primitives_

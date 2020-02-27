@@ -38,10 +38,11 @@
 
 namespace pbrt {
 
+STAT_COUNTER("Scene/Shapes created", nShapesCreated);
+
 // Shape Method Definitions
 Shape::~Shape() {}
 
-STAT_COUNTER("Scene/Shapes created", nShapesCreated);
 Shape::Shape(const Transform *ObjectToWorld, const Transform *WorldToObject,
              bool reverseOrientation)
     : ObjectToWorld(ObjectToWorld),

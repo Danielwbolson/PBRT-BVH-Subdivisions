@@ -54,7 +54,7 @@ Light::Light(int flags, const Transform &LightToWorld,
     ++numLights;
 }
 
-Light::~Light() {}
+Light::~Light() { }
 
 bool VisibilityTester::Unoccluded(const Scene &scene) const {
     return !scene.IntersectP(p0.SpawnRayTo(p1));
