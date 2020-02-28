@@ -1694,9 +1694,9 @@ Scene *RenderOptions::MakeScene() {
     float sceneVolume = b.Volume();
     threshold = sceneVolume / std::pow(2, 18);
 
-    int newTris = CountSubdivisions();
+    std::vector<int> numNewTris = CountSubdivisions();
 
-    SubdivideTriangles(primitives, newTris);
+    SubdivideTriangles(primitives, numNewTris);
 
     std::shared_ptr<Primitive> accelerator = MakeAccelerator(
         AcceleratorName, std::move(primitives), AcceleratorParams);
@@ -1791,18 +1791,20 @@ std::vector<int> CountSubdivisions() {
 			if (currMesh != std::dynamic_pointer_cast<Triangle>(s)->mesh) {
                 currMesh = std::dynamic_pointer_cast<Triangle>(s)->mesh;
                 newTriIndex += 1;
+                newTris.push_back(0);
 			}
+
+			// Here, we know we are working a triangle mesh, count it's subdivisions
+            newTris[newTriIndex] += s->CountSubdivisions(threshold);
 		}
 
-        // Here, we know we are working a triangle mesh, count it's subdivisions
-        newTris[newTriIndex] += s->CountSubdivisions(threshold);
     }
 
     return newTris;
 }
 
 void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims,
-                        const int &newTris) {
+                        const std::vector<int> &numNewTris) {
     // Setting up information for when we make the primitives
     MediumInterface mi = graphicsState.CreateMediumInterface();
 
@@ -1810,8 +1812,11 @@ void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims,
     std::shared_ptr<GraphicsState::FloatTextureMap> ftm;
     std::shared_ptr<GraphicsState::SpectrumTextureMap> stm;
     TextureParams tp(empty, empty, *ftm, *stm);
-
     std::shared_ptr<Material> m = MakeMaterial("red", tp);
+
+
+	std::shared_ptr<TriangleMesh> currMesh = nullptr;
+    int numTriIndex = -1;
 
     // run through each primitive and subdivide
     for (int i = prims.size() - 1; i >= 0; i--) {
@@ -1821,6 +1826,14 @@ void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims,
             continue;
         }
 
+		std::shared_ptr<TriangleMesh> triMesh =
+            std::dynamic_pointer_cast<Triangle>(s)->mesh;
+        if (currMesh != triMesh) {
+            currMesh = triMesh;
+            numTriIndex += 1;
+
+			// Reserve new space for our indices
+		}
         // If we get to here, we are working exclusively with a triangle
         std::vector<std::shared_ptr<Shape>> newTris = s->Subdivide(threshold);
 
