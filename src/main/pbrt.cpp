@@ -166,12 +166,6 @@ int main(int argc, char *argv[]) {
         // Parse scene from input files
         for (const std::string &f : filenames)
             pbrtParseFile(f);
-
-#ifdef PROGRAM_2_ASSIGNMENT
-		/* * * * * PROGRAM 2 ASSIGNMENT * * * * */
-		//2nd pass, now  we can calculate all of our subdividions with out 
-		SubdivideTriangles(filenames);
-#endif
     }
 
     pbrtCleanup();

@@ -749,7 +749,7 @@ bool Triangle::SupportsSubdivision() const {
 }
 
 std::vector<std::shared_ptr<Shape> > Triangle::Subdivide(
-    const float &threshold, const int &offset) { 
+    const float &threshold) { 
 
 	std::vector<std::shared_ptr<Shape>> tris;
     std::vector<std::shared_ptr<Shape>> subTris;
@@ -766,9 +766,9 @@ std::vector<std::shared_ptr<Shape> > Triangle::Subdivide(
     Vector3f *S = nullptr;
     Point2f *uvs = nullptr;
 
-	int index0 = mesh->vertexIndices[0 + offset];
-	int index1 = mesh->vertexIndices[1 + offset];
-	int index2 = mesh->vertexIndices[2 + offset];
+	int index0 = v[0];
+    int index1 = v[1];
+    int index2 = v[2];
 
     Point3f p0 = mesh->p[index0];
     Point3f p1 = mesh->p[index1];
@@ -842,7 +842,7 @@ std::vector<std::shared_ptr<Shape> > Triangle::Subdivide(
             normals, uvs, mesh->alphaMask, mesh->shadowAlphaMask);
 
 		for (int i = newTris.size() - 1; i >= 0; i--) {
-            subTris = newTris[i]->Subdivide(threshold, i * 3);
+            subTris = newTris[i]->Subdivide(threshold);
 			if (subTris.size() > 0) {
                 auto it = newTris.begin();
                 std::advance(it, i);

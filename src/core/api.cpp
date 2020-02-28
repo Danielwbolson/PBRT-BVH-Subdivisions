@@ -378,7 +378,6 @@ int catIndentCount = 0;
 
 /* * * * * PROGRAM 2 ASSIGNMENT * * * * */
 float threshold;
-bool subdivide = false;
 
 // API Forward Declarations
 std::vector<std::shared_ptr<Shape>> MakeShapes(const std::string &name,
@@ -432,10 +431,11 @@ std::vector<std::shared_ptr<Shape>> MakeShapes(const std::string &name,
     } while (false) /* swallow trailing semicolon */
 
 // Object Creation Function Definitions
-std::vector<std::shared_ptr<Shape>> MakeShapes(
-    const std::string &name, const Transform *object2world,
-    const Transform *world2object, bool reverseOrientation,
-    const ParamSet &paramSet) {
+std::vector<std::shared_ptr<Shape>> MakeShapes(const std::string &name,
+                                               const Transform *object2world,
+                                               const Transform *world2object,
+                                               bool reverseOrientation,
+                                               const ParamSet &paramSet) {
     std::vector<std::shared_ptr<Shape>> shapes;
     std::shared_ptr<Shape> s;
     if (name == "sphere")
@@ -540,107 +540,8 @@ std::vector<std::shared_ptr<Shape>> MakeShapes(
     else
         Warning("Shape \"%s\" unknown.", name.c_str());
 
-#ifdef PROGRAM_2_ASSIGNMENT
-    if (!subdivide) {
-        return shapes;
-    }
-	// If we are here, we are in our subdividing pass
-
-    int offset = shapes.size() * 3 - 3;
-    // Now, we can run through each shape and subdivide using our heuristic
-    std::vector<std::shared_ptr<Shape>> allNewTris;
-    for (int i = shapes.size() - 1; i >= 0; i--) {
-
-        if (!shapes[i]->SupportsSubdivision()) {
-            offset -= 3;
-            continue;
-        }
-
-        // If we get to here, we are working exclusively with a triangle
-        std::vector<std::shared_ptr<Shape>> newTris =
-            shapes[i]->Subdivide(threshold, offset);
-        offset -= 3;
-
-        // IF we get new subdivisions, delete our current triangle and add
-        // in the new ones
-        if (newTris.size() > 0) {
-            shapes.insert(shapes.end(), newTris.begin(), newTris.end());
-
-            // Delete triangles since they have been subdivided
-            auto it = shapes.begin();
-            std::advance(it, i);
-            shapes.erase(it);
-        }
-    }
-
-#endif
-
-	return shapes;
+    return shapes;
 }
-
-#ifdef PROGRAM_2_ASSIGNMENT
-/* * * * * PROGRAM 2 ASSIGNMENT * * * * */
-void SubdivideTriangles(std::vector<std::string> filenames) {
-    if (renderOptions->primitives.size() == 0) {
-        return;
-    }
-
-    // Now that we have all of our meshes, do a pass to determine our scene
-    // bounds
-    float maxX = std::numeric_limits<float>::lowest();
-    float maxY = std::numeric_limits<float>::lowest();
-    float maxZ = std::numeric_limits<float>::lowest();
-    float minX = std::numeric_limits<float>::max();
-    float minY = std::numeric_limits<float>::max();
-    float minZ = std::numeric_limits<float>::max();
-
-    for (auto p : renderOptions->primitives) {
-
-		// Only want bounds of actual scene geometry, not lights
-        if (p->GetAreaLight() != nullptr) continue;
-
-        Bounds3f b = p->WorldBound();
-        for (int i = 0; i < 4; i++) {
-            Point3f corner = b.Corner(i);
-            if (corner.x > maxX) maxX = corner.x;
-            if (corner.x < minX) minX = corner.x;
-            if (corner.y > maxY) maxY = corner.y;
-            if (corner.y < minY) minY = corner.y;
-            if (corner.z > maxZ) maxZ = corner.z;
-            if (corner.z < minZ) minZ = corner.z;
-        }
-    }
-	
-    // Get scene bounds and volume and heuristic threshold
-    Bounds3f b = Bounds3f(Point3f(minX, minY, minZ), Point3f(maxX, maxY, maxZ));
-    float sceneVolume = b.Volume();
-    threshold = sceneVolume / std::pow(2, 20);
-    subdivide = true;
-
-    // We now have our global bounds, time to restart and re-read in our input files and
-    // subdivide now
-    graphicsState = GraphicsState();
-    transformCache.Clear();
-    currentApiState = APIState::OptionsBlock;
-    ImageTexture<Float, Float>::ClearCache();
-    ImageTexture<RGBSpectrum, Spectrum>::ClearCache();
-
-    renderOptions->primitives.clear();
-    renderOptions.reset(new RenderOptions);
-
-    namedCoordinateSystems.clear();
-    pushedGraphicsStates.clear();
-    pushedTransforms.clear();
-    pushedActiveTransformBits.clear();
-    catIndentCount = 0;
-    triMeshBytes = 0;
-
-    for (auto f : filenames) {
-        pbrtParseFile(f);
-    }
-}
-
-#endif
 
 STAT_COUNTER("Scene/Materials created", nMaterialsCreated);
 
@@ -651,8 +552,18 @@ std::shared_ptr<Material> MakeMaterial(const std::string &name,
         return nullptr;
     else if (name == "matte")
         material = CreateMatteMaterial(mp);
-    else if (name == "plastic")
-        material = CreatePlasticMaterial(mp);
+    else if (name == "red") {
+        float red[3] = {1, 0, 0};
+        std::shared_ptr<Texture<Spectrum>> Kd =
+            mp.GetSpectrumTexture("Kd", Spectrum::FromRGB(red, SpectrumType::Reflectance));
+        std::shared_ptr<Texture<Float>> sigma =
+            mp.GetFloatTexture("sigma", 0.f);
+        std::shared_ptr<Texture<Float>> bumpMap =
+            mp.GetFloatTextureOrNull("bumpmap");
+        material = new MatteMaterial(Kd, sigma, bumpMap);
+	}
+    else if (name == "plastic") 
+		material = CreatePlasticMaterial(mp);
     else if (name == "translucent")
         material = CreateTranslucentMaterial(mp);
     else if (name == "glass")
@@ -1225,7 +1136,7 @@ void pbrtMediumInterface(const std::string &insideName,
 void pbrtWorldBegin() {
     VERIFY_OPTIONS("WorldBegin");
 
-	transformCacheBytes = 0;
+    transformCacheBytes = 0;
     nTransformCacheHits = 0;
     nMaterialsCreated = 0;
 
@@ -1473,22 +1384,10 @@ void pbrtShape(const std::string &name, const ParamSet &params) {
                                      mi, graphicsState.areaLightParams, s);
                 if (area) areaLights.push_back(area);
             }
-            
-#if defined(SPACESHIP) && defined(PROGRAM_2_ASSIGNMENT)
-			if (s->subdivided) {
-                prims.push_back(std::make_shared<GeometricPrimitive>(
-                    s,
-                    (*graphicsState.namedMaterials)["subdivide"]->material,
-                    nullptr, mi));
-            } else {
-                prims.push_back(std::make_shared<GeometricPrimitive>(
-                    s, mtl, nullptr, mi));
-            }
-#else
-                prims.push_back(std::make_shared<GeometricPrimitive>(
-                    s, mtl, nullptr, mi));
-#endif
-		}
+
+            prims.push_back(
+                std::make_shared<GeometricPrimitive>(s, mtl, nullptr, mi));
+        }
     } else {
         // Initialize _prims_ and _areaLights_ for animated shape
 
@@ -1504,26 +1403,15 @@ void pbrtShape(const std::string &name, const ParamSet &params) {
 
         // Create _GeometricPrimitive_(s) for animated shape
         std::shared_ptr<Material> mtl =
-            graphicsState.GetMaterialForShape(params);       
+            graphicsState.GetMaterialForShape(params);
 
         params.ReportUnused();
         MediumInterface mi = graphicsState.CreateMediumInterface();
         prims.reserve(shapes.size());
         for (auto s : shapes) {
-#if defined(SPACESHIP) && defined(PROGRAM_2_ASSIGNMENT)
-        if (s->subdivided) {
-            prims.push_back(std::make_shared<GeometricPrimitive>(
-                s, (*graphicsState.namedMaterials)["subdivide"]->material,
-                nullptr, mi));
-        } else {
             prims.push_back(
                 std::make_shared<GeometricPrimitive>(s, mtl, nullptr, mi));
         }
-#else
-        prims.push_back(
-            std::make_shared<GeometricPrimitive>(s, mtl, nullptr, mi));
-#endif
-		}
         // Create single _TransformedPrimitive_ for _prims_
 
         // Get _animatedObjectToWorld_ transform for shape
@@ -1717,11 +1605,6 @@ void pbrtObjectInstance(const std::string &name) {
 void pbrtWorldEnd() {
     VERIFY_WORLD("WorldEnd");
 
-#ifdef PROGRAM_2_ASSIGNMENT
-	// Only do the final render after our subdivison step
-    if (!subdivide) return;
-#endif
-
     // Ensure there are no pushed graphics states
     while (pushedGraphicsStates.size()) {
         Warning("Missing end to pbrtAttributeBegin()");
@@ -1782,6 +1665,38 @@ void pbrtWorldEnd() {
 }
 
 Scene *RenderOptions::MakeScene() {
+    // Now that we have all of our meshes, do a pass to determine our scene
+    // bounds
+    float maxX = std::numeric_limits<float>::lowest();
+    float maxY = std::numeric_limits<float>::lowest();
+    float maxZ = std::numeric_limits<float>::lowest();
+    float minX = std::numeric_limits<float>::max();
+    float minY = std::numeric_limits<float>::max();
+    float minZ = std::numeric_limits<float>::max();
+
+    for (auto p : primitives) {
+        // Only want bounds of actual scene geometry, not lights
+        if (p->GetAreaLight() != nullptr) continue;
+
+        Bounds3f b = p->WorldBound();
+        for (int i = 0; i < 4; i++) {
+            Point3f corner = b.Corner(i);
+            if (corner.x > maxX) maxX = corner.x;
+            if (corner.x < minX) minX = corner.x;
+            if (corner.y > maxY) maxY = corner.y;
+            if (corner.y < minY) minY = corner.y;
+            if (corner.z > maxZ) maxZ = corner.z;
+            if (corner.z < minZ) minZ = corner.z;
+        }
+    }
+
+    // Get scene bounds and volume and heuristic threshold
+    Bounds3f b = Bounds3f(Point3f(minX, minY, minZ), Point3f(maxX, maxY, maxZ));
+    float sceneVolume = b.Volume();
+    threshold = sceneVolume / std::pow(2, 18);
+
+    SubdivideTriangles(primitives);
+
     std::shared_ptr<Primitive> accelerator = MakeAccelerator(
         AcceleratorName, std::move(primitives), AcceleratorParams);
     if (!accelerator) accelerator = std::make_shared<BVHAccel>(primitives);
@@ -1858,6 +1773,48 @@ Camera *RenderOptions::MakeCamera() const {
                                       renderOptions->transformStartTime,
                                       renderOptions->transformEndTime, film);
     return camera;
+}
+
+int CountSubdivisions() { return 0; }
+
+void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims) {
+    // Now, we can run through each shape and subdivide using our heuristic
+    MediumInterface mi = graphicsState.CreateMediumInterface();
+
+	ParamSet empty;
+    std::shared_ptr<GraphicsState::FloatTextureMap> ftm;
+    std::shared_ptr<GraphicsState::SpectrumTextureMap> stm;
+    TextureParams tp(empty, empty, *ftm, *stm);
+
+    std::shared_ptr<Material> m = MakeMaterial("red", tp);
+
+    for (int i = prims.size() - 1; i >= 0; i--) {
+        std::shared_ptr<Shape> s = prims[i]->GetShape();
+
+        if (s == nullptr || !s->SupportsSubdivision()) {
+            continue;
+        }
+
+        // If we get to here, we are working exclusively with a triangle
+        std::vector<std::shared_ptr<Shape>> newTris = s->Subdivide(threshold);
+
+        // IF we get new subdivisions, delete our current triangle and add
+        // in the new ones
+        if (newTris.size() > 0) {
+            // First, turn all of our shapes into primitives
+            for (auto t : newTris) {
+                prims.push_back(std::make_shared<GeometricPrimitive>(
+                    s,
+                    m,
+                    nullptr, mi));
+            }
+
+            // Delete our primitive that has been subdivided
+            auto it = prims.begin();
+            std::advance(it, i);
+            prims.erase(it);
+        }
+    }
 }
 
 }  // namespace pbrt

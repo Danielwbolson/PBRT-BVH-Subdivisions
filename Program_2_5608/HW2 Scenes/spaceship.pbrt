@@ -18,6 +18,18 @@ Shape "sphere" "float radius" [.5]
 AttributeEnd
 
 AttributeBegin
+AreaLightSource "area" "color L" [20 20 20 ] "integer nsamples"  [3]
+Translate 2 -1 1
+Shape "sphere" "float radius" [.2]
+AttributeEnd
+
+AttributeBegin
+AreaLightSource "area" "color L" [20 20 20 ] "integer nsamples"  [3]
+Translate 2 2 2
+Shape "sphere" "float radius" [.2]
+AttributeEnd
+
+AttributeBegin
 AreaLightSource "area" "color L" [15 15 15 ] "integer nsamples"  [3]
 Translate 3 6 -2
 Shape "sphere" "float radius" [.25]

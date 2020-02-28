@@ -36,10 +36,6 @@
 #endif
 
 
-#define PROGRAM_2_ASSIGNMENT
-//#define SPACESHIP
-
-
 #ifndef PBRT_CORE_API_H
 #define PBRT_CORE_API_H
 
@@ -97,7 +93,8 @@ void pbrtParseFile(std::string filename);
 void pbrtParseString(std::string str);
 
 /* * * * * * PROGRAM 2 ASSIGNMENT * * * * */
-void SubdivideTriangles(std::vector<std::string>);
+int CountSubdivisions();
+void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &);
 
 }  // namespace pbrt
 

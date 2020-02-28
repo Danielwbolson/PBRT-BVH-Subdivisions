@@ -107,7 +107,7 @@ bool Shape::SupportsSubdivision() const {
 	return false; 
 }
 
-std::vector<std::shared_ptr<Shape>> Shape::Subdivide(const float &, const int&) { 
+std::vector<std::shared_ptr<Shape>> Shape::Subdivide(const float &) { 
 	return std::vector<std::shared_ptr<Shape> >();
 }
 

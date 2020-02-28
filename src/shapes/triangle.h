@@ -99,8 +99,11 @@ class Triangle : public Shape {
 
 	/* * * * * PROGRAM 2 ASSIGNMENT * * * * */
 	std::shared_ptr<TriangleMesh> mesh;
+    const int *v;
+    int faceIndex;
+
     bool SupportsSubdivision() const;
-    std::vector<std::shared_ptr<Shape> > Subdivide(const float &, const int&);
+    std::vector<std::shared_ptr<Shape> > Subdivide(const float &);
 
   private:
     // Triangle Private Methods
@@ -117,8 +120,6 @@ class Triangle : public Shape {
     }
 
     // Triangle Private Data
-    const int *v;
-    int faceIndex;
 };
 
 std::vector<std::shared_ptr<Shape>> CreateTriangleMesh(
