@@ -93,8 +93,8 @@ void pbrtParseFile(std::string filename);
 void pbrtParseString(std::string str);
 
 /* * * * * * PROGRAM 2 ASSIGNMENT * * * * */
-int CountSubdivisions();
-void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &);
+std::vector<int> CountSubdivisions();
+void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &, const int&);
 
 }  // namespace pbrt
 

@@ -864,4 +864,60 @@ std::vector<std::shared_ptr<Shape> > Triangle::Subdivide(
 	return tris; 
 }
 
+int Triangle::CountSubdivisions(const float &threshold, Point3f *p) {
+
+    int newTris = 0;
+
+    Point3f *newPointsTriLeft;
+    Point3f *newPointsTriRight;
+    Point3f midpoint;
+
+	if (p == nullptr) {
+        p = new Point3f[3]{mesh->p[v[0]], mesh->p[v[1]], mesh->p[v[2]]};
+	}
+
+    Bounds3f b0 = Bounds3f(p[0], p[1]);
+    Bounds3f b1 = Bounds3f(p[0], p[2]);
+    Bounds3f b2 = Bounds3f(p[1], p[2]);
+
+    float v0 = b0.Volume();
+    float v1 = b1.Volume();
+    float v2 = b2.Volume();
+
+	if (std::max(v0, std::max(v1, v2)) < threshold) {
+        return 0;
+	}
+
+    if (v0 >= v1 && v0 >= v2) {
+        midpoint = (p[0] + p[1]) / 2.0f;
+        newTris = 1;
+
+        newPointsTriLeft = new Point3f[3]{p[0], midpoint, p[2]};
+        newPointsTriRight = new Point3f[3]{p[2], midpoint, p[1]};
+
+    } else if (v1 >= v0 && v1 >= v2) {
+        midpoint = (p[0] + p[2]) / 2.0f;
+        newTris = 1;
+
+		newPointsTriLeft = new Point3f[3]{p[0], p[1], midpoint};
+        newPointsTriRight = new Point3f[3]{midpoint, p[1], p[2]};
+
+    } else if (v2 >= v0 && v2 >= v1) {
+        midpoint = (p[1] + p[2]) / 2.0f;
+        newTris = 1;
+
+		newPointsTriLeft = new Point3f[3]{p[0], p[1], midpoint};
+        newPointsTriRight = new Point3f[3]{midpoint, p[2], p[0]};
+
+    }
+
+	newTris += CountSubdivisions(threshold, newPointsTriLeft);
+    newTris += CountSubdivisions(threshold, newPointsTriRight);
+	
+	delete newPointsTriLeft;
+    delete newPointsTriRight;
+
+	return newTris;
+}
+
 }  // namespace pbrt

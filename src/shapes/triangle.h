@@ -104,6 +104,7 @@ class Triangle : public Shape {
 
     bool SupportsSubdivision() const;
     std::vector<std::shared_ptr<Shape> > Subdivide(const float &);
+    int CountSubdivisions(const float&, Point3f* p = nullptr);
 
   private:
     // Triangle Private Methods

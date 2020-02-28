@@ -91,6 +91,7 @@ class Shape {
 	/* * * * * PROGRAM 2 ASSIGNMENT * * * * */
     virtual bool SupportsSubdivision() const;
     virtual std::vector<std::shared_ptr<Shape> > Subdivide(const float&);
+    virtual int CountSubdivisions(const float&, Point3f* p = nullptr) { return 0; }
     bool subdivided = false;
 };
 

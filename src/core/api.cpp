@@ -554,16 +554,15 @@ std::shared_ptr<Material> MakeMaterial(const std::string &name,
         material = CreateMatteMaterial(mp);
     else if (name == "red") {
         float red[3] = {1, 0, 0};
-        std::shared_ptr<Texture<Spectrum>> Kd =
-            mp.GetSpectrumTexture("Kd", Spectrum::FromRGB(red, SpectrumType::Reflectance));
+        std::shared_ptr<Texture<Spectrum>> Kd = mp.GetSpectrumTexture(
+            "Kd", Spectrum::FromRGB(red, SpectrumType::Reflectance));
         std::shared_ptr<Texture<Float>> sigma =
             mp.GetFloatTexture("sigma", 0.f);
         std::shared_ptr<Texture<Float>> bumpMap =
             mp.GetFloatTextureOrNull("bumpmap");
         material = new MatteMaterial(Kd, sigma, bumpMap);
-	}
-    else if (name == "plastic") 
-		material = CreatePlasticMaterial(mp);
+    } else if (name == "plastic")
+        material = CreatePlasticMaterial(mp);
     else if (name == "translucent")
         material = CreateTranslucentMaterial(mp);
     else if (name == "glass")
@@ -1695,7 +1694,9 @@ Scene *RenderOptions::MakeScene() {
     float sceneVolume = b.Volume();
     threshold = sceneVolume / std::pow(2, 18);
 
-    SubdivideTriangles(primitives);
+    int newTris = CountSubdivisions();
+
+    SubdivideTriangles(primitives, newTris);
 
     std::shared_ptr<Primitive> accelerator = MakeAccelerator(
         AcceleratorName, std::move(primitives), AcceleratorParams);
@@ -1775,19 +1776,44 @@ Camera *RenderOptions::MakeCamera() const {
     return camera;
 }
 
-int CountSubdivisions() { return 0; }
+std::vector<int> CountSubdivisions() {
+    std::vector<int> newTris;
+    int newTriIndex = -1;
 
-void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims) {
-    // Now, we can run through each shape and subdivide using our heuristic
+    std::shared_ptr<TriangleMesh> currMesh = nullptr;
+
+    for (int i = 0; i < renderOptions->primitives.size(); i++) {
+
+        std::shared_ptr<Shape> s = renderOptions->primitives[i]->GetShape();
+
+		if (s->SupportsSubdivision()) {
+			
+			if (currMesh != std::dynamic_pointer_cast<Triangle>(s)->mesh) {
+                currMesh = std::dynamic_pointer_cast<Triangle>(s)->mesh;
+                newTriIndex += 1;
+			}
+		}
+
+        // Here, we know we are working a triangle mesh, count it's subdivisions
+        newTris[newTriIndex] += s->CountSubdivisions(threshold);
+    }
+
+    return newTris;
+}
+
+void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims,
+                        const int &newTris) {
+    // Setting up information for when we make the primitives
     MediumInterface mi = graphicsState.CreateMediumInterface();
 
-	ParamSet empty;
+    ParamSet empty;
     std::shared_ptr<GraphicsState::FloatTextureMap> ftm;
     std::shared_ptr<GraphicsState::SpectrumTextureMap> stm;
     TextureParams tp(empty, empty, *ftm, *stm);
 
     std::shared_ptr<Material> m = MakeMaterial("red", tp);
 
+    // run through each primitive and subdivide
     for (int i = prims.size() - 1; i >= 0; i--) {
         std::shared_ptr<Shape> s = prims[i]->GetShape();
 
@@ -1803,10 +1829,8 @@ void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims) {
         if (newTris.size() > 0) {
             // First, turn all of our shapes into primitives
             for (auto t : newTris) {
-                prims.push_back(std::make_shared<GeometricPrimitive>(
-                    s,
-                    m,
-                    nullptr, mi));
+                prims.push_back(
+                    std::make_shared<GeometricPrimitive>(s, m, nullptr, mi));
             }
 
             // Delete our primitive that has been subdivided
