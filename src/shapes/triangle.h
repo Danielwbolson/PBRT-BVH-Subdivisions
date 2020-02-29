@@ -103,7 +103,7 @@ class Triangle : public Shape {
     int faceIndex;
 
     bool SupportsSubdivision() const;
-    std::vector<std::shared_ptr<Shape> > Subdivide(const float &);
+    bool Subdivide(const float &, int&, int&, Point3f* p = nullptr);
     int CountSubdivisions(const float&, Point3f* p = nullptr);
 
   private:
