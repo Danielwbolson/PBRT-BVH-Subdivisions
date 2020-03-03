@@ -133,7 +133,11 @@ int main(int argc, char *argv[]) {
                    !strcmp(argv[i], "-h")) {
             usage();
             return 0;
-        } else
+		} else if (!strcmp(argv[i], "--exponent")) {
+			thresholdExponent = atoi(argv[++i]);
+		} else if (!strcmp(argv[i], "--frame")) {
+			frame = atoi(argv[++i]);
+		} else
             filenames.push_back(argv[i]);
     }
 

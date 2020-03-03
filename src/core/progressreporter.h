@@ -56,15 +56,8 @@ class ProgressReporter {
         if (num == 0 || PbrtOptions.quiet) return;
         workDone += num;
     }
-    Float ElapsedMS() const {
-        std::chrono::system_clock::time_point now =
-            std::chrono::system_clock::now();
-        int64_t elapsedMS =
-            std::chrono::duration_cast<std::chrono::milliseconds>(now -
-                                                                  startTime)
-                .count();
-        return (Float)elapsedMS;
-    }
+	Float ElapsedMS() const;
+
     void Done();
 
   private:

@@ -117,8 +117,15 @@
 
 #include <stdio.h>
 #include <map>
-
+#include <fstream>
 namespace pbrt {
+
+	float threshold;
+
+	int thresholdExponent = 20;
+	float frame;
+	int totalTris;
+	float renderTime;
 
 // API Global Variables
 Options PbrtOptions;
@@ -377,7 +384,6 @@ static TransformCache transformCache;
 int catIndentCount = 0;
 
 /* * * * * PROGRAM 2 ASSIGNMENT * * * * */
-float threshold;
 
 // API Forward Declarations
 std::vector<std::shared_ptr<Shape>> MakeShapes(const std::string &name,
@@ -561,7 +567,16 @@ std::shared_ptr<Material> MakeMaterial(const std::string &name,
         std::shared_ptr<Texture<Float>> bumpMap =
             mp.GetFloatTextureOrNull("bumpmap");
         material = new MatteMaterial(Kd, sigma, bumpMap);
-    } else if (name == "plastic")
+    } else if (name == "grey") {
+		float red[3] = { .4, .4, .4 };
+		std::shared_ptr<Texture<Spectrum>> Kd = mp.GetSpectrumTexture(
+			"Kd", Spectrum::FromRGB(red, SpectrumType::Reflectance));
+		std::shared_ptr<Texture<Float>> sigma =
+			mp.GetFloatTexture("sigma", 0.f);
+		std::shared_ptr<Texture<Float>> bumpMap =
+			mp.GetFloatTextureOrNull("bumpmap");
+		material = new MatteMaterial(Kd, sigma, bumpMap);
+	} else if (name == "plastic")
         material = CreatePlasticMaterial(mp);
     else if (name == "translucent")
         material = CreateTranslucentMaterial(mp);
@@ -1635,7 +1650,13 @@ void pbrtWorldEnd() {
 
         CHECK_EQ(CurrentProfilerState(), ProfToBits(Prof::IntegratorRender));
         ProfilerState = ProfToBits(Prof::SceneConstruction);
+
     }
+
+	std::ofstream outfile;
+	outfile.open("results.csv", std::ios_base::app);
+	outfile << frame << ", " << thresholdExponent << ", " << totalTris << ", " << renderTime / 1000.0 << "\n";
+	outfile.close();
 
     // Clean up after rendering. Do this before reporting stats so that
     // destructors can run and update stats as needed.
@@ -1675,7 +1696,11 @@ Scene *RenderOptions::MakeScene() {
 
     for (auto p : primitives) {
         // Only want bounds of actual scene geometry, not lights
-        if (p->GetAreaLight() != nullptr) continue;
+		std::shared_ptr<Shape> s = p->GetShape();
+
+		if (s == nullptr || !s->SupportsSubdivision()) {
+			continue;
+		}
 
         Bounds3f b = p->WorldBound();
         for (int i = 0; i < 4; i++) {
@@ -1692,12 +1717,15 @@ Scene *RenderOptions::MakeScene() {
     // Get scene bounds and volume and heuristic threshold
     Bounds3f b = Bounds3f(Point3f(minX, minY, minZ), Point3f(maxX, maxY, maxZ));
     float sceneVolume = b.Volume();
-    threshold = sceneVolume / std::pow(2, 18);
+    threshold = sceneVolume / std::pow(2, thresholdExponent);
 
     std::vector<int> numNewTris;
-    CountSubdivisions(numNewTris);
+	std::vector<int> numNewVerts;
+    CountSubdivisions(numNewTris, numNewVerts);
 
-    SubdivideTriangles(primitives, numNewTris);
+    Subdivide(primitives, numNewTris, numNewVerts);
+
+	totalTris = renderOptions->primitives.size();
 
     std::shared_ptr<Primitive> accelerator = MakeAccelerator(
         AcceleratorName, std::move(primitives), AcceleratorParams);
@@ -1777,31 +1805,44 @@ Camera *RenderOptions::MakeCamera() const {
     return camera;
 }
 
-void CountSubdivisions(std::vector<int> &newTris) {
+void CountSubdivisions(std::vector<int> &newTris, std::vector<int>& newVerts) {
     int newTriIndex = -1;
 
     std::shared_ptr<TriangleMesh> currMesh = nullptr;
 
+	int totalNewTris = 0;
     for (int i = 0; i < renderOptions->primitives.size(); i++) {
         std::shared_ptr<Shape> s = renderOptions->primitives[i]->GetShape();
 
         if (s != nullptr && s->SupportsSubdivision()) {
-            if (currMesh != std::dynamic_pointer_cast<Triangle>(s)->mesh) {
-                currMesh = std::dynamic_pointer_cast<Triangle>(s)->mesh;
+
+			std::shared_ptr<Triangle> tri = std::dynamic_pointer_cast<Triangle>(s);
+
+            if (currMesh != tri->mesh) {
+                currMesh = tri->mesh;
                 newTriIndex += 1;
                 newTris.push_back(0);
+				newVerts.push_back(0);
             }
 
             // Here, we know we are working a triangle mesh, count it's
             // subdivisions
-            int numTris = s->CountSubdivisions(threshold);
+            int numTris = tri->CountSubdivisions(threshold);
+			if (numTris == 1) {
+				continue;
+			}
+
+			totalNewTris += numTris;
+
             newTris[newTriIndex] += numTris;
+			newVerts[newTriIndex] += numTris - 1;
         }
     }
+
 }
 
-void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims,
-                        const std::vector<int> &numNewTris) {
+void Subdivide(std::vector<std::shared_ptr<Primitive>> &prims,
+        const std::vector<int> &numNewTris, const std::vector<int> &numNewVerts) {
     // Setting up information for when we make the primitives
     MediumInterface mi = graphicsState.CreateMediumInterface();
 
@@ -1809,14 +1850,8 @@ void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims,
     std::shared_ptr<GraphicsState::FloatTextureMap> ftm;
     std::shared_ptr<GraphicsState::SpectrumTextureMap> stm;
     TextureParams tp(empty, empty, *ftm, *stm);
-    std::shared_ptr<Material> m = MakeMaterial("red", tp);
+    std::shared_ptr<Material> mRed = MakeMaterial("red", tp);
 
-    // run through each primitive and allocate new mesh data, eventually
-    // generating a new primitive vector
-    std::shared_ptr<TriangleMesh> currMesh = nullptr;
-    int numTriIndex = -1;
-    std::vector<std::shared_ptr<Primitive>> newPrims;
-    newPrims.reserve(prims.size());
 
     /* * * * * COPY MESH INTO NEW BUFFERS PASS * * * * */
 
@@ -1826,13 +1861,18 @@ void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims,
     indexOffset.reserve(numNewTris.size());
     std::vector<int> vertexOffset;
     vertexOffset.reserve(numNewTris.size());
+	std::vector<std::shared_ptr<TriangleMesh> > newMeshes;
+	newMeshes.reserve(numNewTris.size());
 
+	std::shared_ptr<TriangleMesh> currMesh = nullptr;
+	int numTriIndex = -1;
+
+	// while this is a loop over all primitives, it acts like a loop over all meshes
     for (int i = 0; i < prims.size(); i++) {
         // Determine if we are a triangle or not
         std::shared_ptr<Shape> s = prims[i]->GetShape();
 
         if (s == nullptr || !s->SupportsSubdivision()) {
-            newPrims.push_back(prims[i]);
             continue;
         }
 
@@ -1840,80 +1880,84 @@ void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims,
 
         // We have a new mesh to work with, so time to reserve all our necessary
         // data up front with space for our new subdivisions
-        if (currMesh != tri->mesh) {
-            currMesh = tri->mesh;
-            numTriIndex += 1;
+		if (currMesh != tri->mesh) {
+			currMesh = tri->mesh;
+			numTriIndex += 1;
 
-            indexOffset.push_back(tri->mesh->vertexIndices.size());
-            vertexOffset.push_back(tri->mesh->nVertices);
+			indexOffset.push_back(tri->mesh->vertexIndices.size());
+			vertexOffset.push_back(tri->mesh->nVertices);
 
-            // Reserve new space for our indices and other mesh data
-            int nTriangles = tri->mesh->nTriangles + numNewTris[numTriIndex];
-            int nVertices = tri->mesh->nVertices + numNewTris[numTriIndex];
+			// Reserve new space for our indices and other mesh data
+			int nTriangles = tri->mesh->nTriangles + numNewTris[numTriIndex];
+			int nVertices = tri->mesh->nVertices + numNewVerts[numTriIndex];
 
-            int *vertexIndices = new int[tri->mesh->vertexIndices.size() +
-                                         3 * numNewTris[numTriIndex]];
-            Point3f *p = new Point3f[nVertices];
+			int *vertexIndices = new int[tri->mesh->vertexIndices.size() +
+				3 * numNewTris[numTriIndex]];
+			Point3f *p = new Point3f[nVertices];
 
-            Normal3f *n = nullptr;
-            if (tri->mesh->n) n = new Normal3f[nVertices];
+			Normal3f *n = nullptr;
+			if (tri->mesh->n) n = new Normal3f[nVertices];
 
-            Vector3f *s = nullptr;
-            if (tri->mesh->s) s = new Vector3f[nVertices];
+			Vector3f *s = nullptr;
+			if (tri->mesh->s) s = new Vector3f[nVertices];
 
-            Point2f *uv = nullptr;
-            if (tri->mesh->uv) uv = new Point2f[nVertices];
+			Point2f *uv = nullptr;
+			if (tri->mesh->uv) uv = new Point2f[nVertices];
 
-            for (int j = 0; j < tri->mesh->vertexIndices.size(); j++) {
-                vertexIndices[j] = tri->mesh->vertexIndices[j];
-            }
+			for (int j = 0; j < tri->mesh->vertexIndices.size(); j++) {
+				vertexIndices[j] = tri->mesh->vertexIndices[j];
+			}
 
-            for (int j = 0; j < tri->mesh->nVertices; j++) {
-                p[j] = tri->mesh->p[j];
+			for (int j = 0; j < tri->mesh->nVertices; j++) {
+				p[j] = (*tri->WorldToObject)(tri->mesh->p[j]);
 
-                if (tri->mesh->n) n[j] = tri->mesh->n[j];
+				if (tri->mesh->n) n[j] = tri->mesh->n[j];
 
-                if (tri->mesh->s) s[j] = tri->mesh->s[j];
+				if (tri->mesh->s) s[j] = tri->mesh->s[j];
 
-                if (tri->mesh->uv) uv[j] = tri->mesh->uv[j];
-            }
+				if (tri->mesh->uv) uv[j] = tri->mesh->uv[j];
+			}
 
-            // Now that we have reserved the necessary space, make our new mesh
-            std::vector<std::shared_ptr<Shape>> shapes = CreateTriangleMesh(
-                tri->ObjectToWorld, tri->WorldToObject, false, nTriangles,
-                vertexIndices, nVertices, p, s, n, uv, tri->mesh->alphaMask,
-                tri->mesh->shadowAlphaMask);
-
-            // We now have an array of shapes, but need primitives. So we need
-            // to convert them.
-            for (auto s : shapes) {
-                newPrims.push_back(
-                    std::make_shared<GeometricPrimitive>(s, m, nullptr, mi));
-            }
+			// Now that we have reserved the necessary space, make our new mesh
+			newMeshes.push_back(
+				std::make_shared<TriangleMesh>(
+					TriangleMesh(
+						*tri->ObjectToWorld, nTriangles, vertexIndices,
+						nVertices, p, s, n, uv, tri->mesh->alphaMask,
+						tri->mesh->shadowAlphaMask, nullptr)
+				)
+			);
 
             // Finally, increment i to the next mesh in our original prim vector
             i += tri->mesh->nTriangles - 1;
         }
     }
 
+
     /* * * * * SUBDIVIDE AND ADD TO ALLOCATED BUFFERS PASS * * * * */
 
-    // At this point, we have our array of new primitives and now get to do
-    // our subdivision algorithm, so re-run through our new primitives and
-    // add in our new subdivisions
+	// At this point, we have our new allocated meshse and just need to
+	// fill their voids with our new subdivisions
     // Storing to-delete primitives for a later loop
     std::vector<int> deleteIndices;
     numTriIndex = -1;
     currMesh = nullptr;
-    for (int i = 0; i < newPrims.size(); i++) {
-        // Once again, only work with triangles
-        std::shared_ptr<Shape> s = newPrims[i]->GetShape();
+
+	std::vector<std::shared_ptr<Shape>> newShapes;
+	newShapes.reserve(prims.size());
+	std::vector<std::shared_ptr<Primitive>> newPrims;
+	newPrims.reserve(prims.size());
+
+    for (int i = 0; i < prims.size(); i++) {
+        
+		// Once again, only work with triangles
+        std::shared_ptr<Shape> s = prims[i]->GetShape();
         if (s == nullptr || !s->SupportsSubdivision()) {
             continue;
         }
 
+		// Check if we have reached a new mesh in our primitive
         std::shared_ptr<Triangle> tri = std::dynamic_pointer_cast<Triangle>(s);
-
         if (currMesh != tri->mesh) {
             numTriIndex += 1;
             currMesh = tri->mesh;
@@ -1923,23 +1967,158 @@ void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &prims,
         // indexOffset and vertexOffset are used to know where the open slots
         // in our reserved array are. They are passed by reference so will
         // update while subdividing
-        if (s->Subdivide(threshold, indexOffset[numTriIndex],
-                         vertexOffset[numTriIndex])) {
+		// newMeshes is a vector that holds each of our newly allocated meshes
+
+        if (SubdivideTriangle(tri, indexOffset[numTriIndex], vertexOffset[numTriIndex], newMeshes[numTriIndex], newShapes)) {
             deleteIndices.push_back(i);
         }
     }
 
-    // Finally, delete our necessary triangles
+    // Finally, delete our unnecessary triangles
     // Need to reverse our vector so we delete from the back to front
     std::reverse(deleteIndices.begin(), deleteIndices.end());
     for (int i = 0; i < deleteIndices.size(); i++) {
-        auto it = newPrims.begin();
+        auto it = prims.begin();
         std::advance(it, deleteIndices[i]);
-        newPrims.erase(it);
+		prims.erase(it);
     }
 
+	newPrims = prims;
+
+	for (int i = 0; i < newShapes.size(); i++) {
+		newPrims.push_back(std::make_shared<GeometricPrimitive>(newShapes[i], mRed, nullptr, mi));
+	}
+
     // We now have our new primitive array, send it on
-    prims = newPrims;
+	prims.clear();
+	renderOptions->primitives = newPrims;
+}
+
+bool SubdivideTriangle(const std::shared_ptr<Triangle>& origTri, int& indexOffset, int& vertexOffset, 
+	std::shared_ptr<TriangleMesh>& triMesh, std::vector<std::shared_ptr<Shape>>& newShapes, Point3f* p, int* ind) {
+
+	// Handle first call
+	if (p == nullptr) {
+		p = new Point3f[3]{ triMesh->p[origTri->v[0]], triMesh->p[origTri->v[1]], triMesh->p[origTri->v[2]] };
+	}
+	if (ind == nullptr) {
+		ind = new int[3]{ origTri->v[0], origTri->v[1], origTri->v[2] };
+	}
+
+	Point3f *newPointsTriLeft;
+	Point3f *newPointsTriRight;
+	int *leftIndices;
+	int *rightIndices;
+	Point3f midpoint;
+	Vector3f midS;
+	Normal3f midNormal;
+	Point2f midUV;
+
+	Bounds3f b0 = Bounds3f(p[0], p[1]);
+	Bounds3f b1 = Bounds3f(p[0], p[2]);
+	Bounds3f b2 = Bounds3f(p[1], p[2]);
+
+	float v0 = b0.Volume();
+	float v1 = b1.Volume();
+	float v2 = b2.Volume();
+
+	if (std::max(v0, std::max(v1, v2)) < threshold) {
+		return false;
+	}
+
+	if (v0 >= v1 && v0 >= v2) {
+
+		midpoint = (p[0] + p[1]) / 2.0f;
+
+		newPointsTriLeft = new Point3f[3]{ p[0], midpoint, p[2] };
+		leftIndices = new int[3]{ ind[0], vertexOffset, ind[2] };
+
+		newPointsTriRight = new Point3f[3]{ midpoint, p[1], p[2] };
+		rightIndices = new int[3]{ vertexOffset, ind[1], ind[2] };
+
+		if (triMesh->s)
+			midS = (triMesh->s[ind[0]] + triMesh->s[ind[1]]) / 2.0f;
+		if (triMesh->n)
+			midNormal = Normalize((triMesh->n[ind[0]] + triMesh->n[ind[1]]) / 2.0f);
+		if (triMesh->uv)
+			midUV = (triMesh->uv[ind[0]] + triMesh->uv[ind[1]]) / 2.0f;
+
+	} else if (v1 >= v0 && v1 >= v2) {
+
+		midpoint = (p[0] + p[2]) / 2.0f;
+
+		newPointsTriLeft = new Point3f[3]{ p[2], midpoint, p[1] };
+		leftIndices = new int[3]{ ind[2], vertexOffset, ind[1] };
+
+		newPointsTriRight = new Point3f[3]{ midpoint, p[0], p[1] };
+		rightIndices = new int[3]{ vertexOffset, ind[0], ind[1] };
+
+		if (triMesh->s)
+			midS = (triMesh->s[ind[0]] + triMesh->s[ind[2]]) / 2.0f;
+		if (triMesh->n)
+			midNormal = Normalize((triMesh->n[ind[0]] + triMesh->n[ind[2]]) / 2.0f);
+		if (triMesh->uv)
+			midUV = (triMesh->uv[ind[0]] + triMesh->uv[ind[2]]) / 2.0f;
+
+	} else if (v2 >= v0 && v2 >= v1) {
+
+		midpoint = (p[1] + p[2]) / 2.0f;
+
+		newPointsTriLeft = new Point3f[3]{ p[1], midpoint, p[0] };
+		leftIndices = new int[3]{ ind[1], vertexOffset, ind[0] };
+
+		newPointsTriRight = new Point3f[3]{ midpoint, p[2], p[0] };
+		rightIndices = new int[3]{ vertexOffset, ind[2], ind[0] };
+
+		if (triMesh->s)
+			midS = (triMesh->s[ind[1]] + triMesh->s[ind[2]]) / 2.0f;
+		if (triMesh->n)
+			midNormal = Normalize((triMesh->n[ind[1]] + triMesh->n[ind[2]]) / 2.0f);
+		if (triMesh->uv)
+			midUV = (triMesh->uv[ind[1]] + triMesh->uv[ind[2]]) / 2.0f;
+	}
+
+
+	// Reaching here means we are going to be subdivided, now we check our two subordinate triangles
+
+	// If we are subdivided, we always add our vertex information
+	triMesh->p[vertexOffset] = midpoint;
+	if (triMesh->n) triMesh->n[vertexOffset] = midNormal;
+	if (triMesh->s) triMesh->s[vertexOffset] = midS;
+	if (triMesh->uv) triMesh->uv[vertexOffset] = midUV;
+	vertexOffset++;
+
+	// We only want to add subordinate triangle information if it is not subdivided
+
+	// If the left part of our triangle is not subdivided, add it
+	if (!SubdivideTriangle(origTri, indexOffset, vertexOffset, triMesh, newShapes, newPointsTriLeft, leftIndices)) {
+
+		newShapes.push_back(std::make_shared<Triangle>(
+			Triangle(origTri->ObjectToWorld, origTri->WorldToObject, origTri->reverseOrientation, triMesh, indexOffset / 3)
+			)
+		);
+
+		triMesh->vertexIndices[indexOffset++] = leftIndices[0];
+		triMesh->vertexIndices[indexOffset++] = leftIndices[1];
+		triMesh->vertexIndices[indexOffset++] = leftIndices[2];
+
+	}
+
+	// If the right part of our triangle is not subdivided, add it
+	if (!SubdivideTriangle(origTri, indexOffset, vertexOffset, triMesh, newShapes, newPointsTriRight, rightIndices)) {
+
+		newShapes.push_back(std::make_shared<Triangle>(
+			Triangle(origTri->ObjectToWorld, origTri->WorldToObject, origTri->reverseOrientation, triMesh, indexOffset / 3)
+			)
+		);
+
+		triMesh->vertexIndices[indexOffset++] = rightIndices[0];
+		triMesh->vertexIndices[indexOffset++] = rightIndices[1];
+		triMesh->vertexIndices[indexOffset++] = rightIndices[2];
+
+	}
+
+	return true;
 }
 
 }  // namespace pbrt

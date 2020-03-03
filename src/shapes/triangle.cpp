@@ -739,118 +739,6 @@ std::vector<std::shared_ptr<Shape>> CreateTriangleMeshShape(
 /* * * * * PROGRAM 2 ASSIGNMENT * * * * */
 bool Triangle::SupportsSubdivision() const { return true; }
 
-bool Triangle::Subdivide(const float &threshold, int &indexOffset,
-                         int &vertexOffset, Point3f *p) {
-    // Handle first call
-    if (p == nullptr) {
-        p = new Point3f[3]{mesh->p[v[0]], mesh->p[v[1]], mesh->p[v[2]]};
-    }
-
-    Point3f *newPointsTriLeft;
-    Point3f *newPointsTriRight;
-    int *leftIndices;
-    int *rightIndices;
-    Point3f midpoint;
-    Vector3f midS;
-    Normal3f midNormal;
-    Point2f midUV;
-
-    Bounds3f b0 = Bounds3f(p[0], p[1]);
-    Bounds3f b1 = Bounds3f(p[0], p[2]);
-    Bounds3f b2 = Bounds3f(p[1], p[2]);
-
-    float v0 = b0.Volume();
-    float v1 = b1.Volume();
-    float v2 = b2.Volume();
-
-    if (std::max(v0, std::max(v1, v2)) < threshold) {
-        return false;
-    }
-
-    if (v0 >= v1 && v0 >= v2) {
-
-        midpoint = (p[0] + p[1]) / 2.0f;
-
-        newPointsTriLeft = new Point3f[3]{p[0], midpoint, p[2]};
-        leftIndices = new int[3]{v[0], vertexOffset, v[2]};
-
-        newPointsTriRight = new Point3f[3]{p[2], midpoint, p[1]};
-        rightIndices = new int[3]{v[2], vertexOffset, v[1]};
-
-        if (mesh->s) 
-			midS = (mesh->s[v[0]] + mesh->s[v[1]]) / 2.0f;
-        if (mesh->n)
-            midNormal = Normalize((mesh->n[v[0]] + mesh->n[v[1]]) / 2.0f);
-        if (mesh->uv) 
-			midUV = (mesh->uv[v[0]] + mesh->uv[v[1]]) / 2.0f;
-
-    } else if (v1 >= v0 && v1 >= v2) {
-
-        midpoint = (p[0] + p[2]) / 2.0f;
-
-        newPointsTriLeft = new Point3f[3]{p[0], p[1], midpoint};
-        leftIndices = new int[3]{v[0], v[1], vertexOffset};
-
-        newPointsTriRight = new Point3f[3]{midpoint, p[1], p[2]};
-        rightIndices = new int[3]{vertexOffset, v[1], v[2]};
-
-        if (mesh->s) 
-			midS = (mesh->s[v[0]] + mesh->s[v[2]]) / 2.0f;
-        if (mesh->n)
-            midNormal = Normalize((mesh->n[v[0]] + mesh->n[v[2]]) / 2.0f);
-        if (mesh->uv) 
-			midUV = (mesh->uv[v[0]] + mesh->uv[v[2]]) / 2.0f;
-
-    } else if (v2 >= v0 && v2 >= v1) {
-
-        midpoint = (p[1] + p[2]) / 2.0f;
-
-		newPointsTriLeft = new Point3f[3]{p[0], p[1], midpoint};
-        leftIndices = new int[3]{v[0], v[1], vertexOffset};
-
-		newPointsTriRight = new Point3f[3]{midpoint, p[2], p[0]};
-        rightIndices = new int[3]{vertexOffset, v[2], v[0]};
-
-        if (mesh->s) 
-			midS = (mesh->s[v[1]] + mesh->s[v[2]]) / 2.0f;
-        if (mesh->n)
-            midNormal = Normalize((mesh->n[v[1]] + mesh->n[v[2]]) / 2.0f);
-        if (mesh->uv) 
-			midUV = (mesh->uv[v[1]] + mesh->uv[v[2]]) / 2.0f;
-    }
-
-
-	// Reaching here means we are going to be subdivided, now we check our two subordinate triangles
-
-	// If we are subdivided, we always add our vertex information
-    mesh->p[vertexOffset] = midpoint;
-    if (mesh->n) mesh->n[vertexOffset] = midNormal;
-    if (mesh->s) mesh->s[vertexOffset] = midS;
-    if (mesh->uv) mesh->uv[vertexOffset] = midUV;
-    vertexOffset++;
-
-	// We only want to add subordinate triangle information if it is not subdivided
-
-	// If the left part of our triangle is not subdivided, add it
-    if (!Subdivide(threshold, indexOffset, vertexOffset, newPointsTriLeft)) {
-
-		mesh->vertexIndices[indexOffset++] = leftIndices[0];
-        mesh->vertexIndices[indexOffset++] = leftIndices[1];
-        mesh->vertexIndices[indexOffset++] = leftIndices[2];
-
-	}
-    
-	// If the right part of our triangle is not subdivided, add it
-	if (!Subdivide(threshold, indexOffset, vertexOffset, newPointsTriRight)) {
-
-		mesh->vertexIndices[indexOffset++] = rightIndices[0];
-        mesh->vertexIndices[indexOffset++] = rightIndices[1];
-        mesh->vertexIndices[indexOffset++] = rightIndices[2];
-
-    }
-
-	return true;
-}
 
 int Triangle::CountSubdivisions(const float &threshold, Point3f *p) {
     int newTris = 0;
@@ -872,33 +760,30 @@ int Triangle::CountSubdivisions(const float &threshold, Point3f *p) {
     float v2 = b2.Volume();
 
     if (std::max(v0, std::max(v1, v2)) < threshold) {
-        return 0;
+        return 1;
     }
 
     if (v0 >= v1 && v0 >= v2) {
         midpoint = (p[0] + p[1]) / 2.0f;
-        newTris = 2;
 
         newPointsTriLeft = new Point3f[3]{p[0], midpoint, p[2]};
-        newPointsTriRight = new Point3f[3]{p[2], midpoint, p[1]};
+        newPointsTriRight = new Point3f[3]{midpoint, p[1], p[2]};
 
     } else if (v1 >= v0 && v1 >= v2) {
         midpoint = (p[0] + p[2]) / 2.0f;
-        newTris = 2;
 
-        newPointsTriLeft = new Point3f[3]{p[0], p[1], midpoint};
-        newPointsTriRight = new Point3f[3]{midpoint, p[1], p[2]};
+        newPointsTriLeft = new Point3f[3]{p[2], midpoint, p[1]};
+        newPointsTriRight = new Point3f[3]{midpoint, p[0], p[1]};
 
     } else if (v2 >= v0 && v2 >= v1) {
         midpoint = (p[1] + p[2]) / 2.0f;
-        newTris = 2;
 
-        newPointsTriLeft = new Point3f[3]{p[0], p[1], midpoint};
+        newPointsTriLeft = new Point3f[3]{p[1], midpoint, p[0]};
         newPointsTriRight = new Point3f[3]{midpoint, p[2], p[0]};
     }
 
-    newTris += std::max(CountSubdivisions(threshold, newPointsTriLeft) - 1, 0);
-    newTris += std::max(CountSubdivisions(threshold, newPointsTriRight) - 1, 0);
+    newTris += CountSubdivisions(threshold, newPointsTriLeft);
+    newTris += CountSubdivisions(threshold, newPointsTriRight);
 
     delete newPointsTriLeft;
     delete newPointsTriRight;

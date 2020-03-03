@@ -92,6 +92,12 @@
 
 namespace pbrt {
 
+	extern float threshold;
+	extern int thresholdExponent;
+	extern float frame;
+	extern int totalTris;
+	extern float renderTime;
+
 // Global Forward Declarations
 class Scene;
 class Integrator;
@@ -116,6 +122,8 @@ class Transform;
 struct Interaction;
 class SurfaceInteraction;
 class Shape;
+class Triangle;
+struct TriangleMesh;
 class Primitive;
 class GeometricPrimitive;
 class TransformedPrimitive;

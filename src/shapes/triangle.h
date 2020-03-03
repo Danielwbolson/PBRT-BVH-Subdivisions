@@ -99,11 +99,10 @@ class Triangle : public Shape {
 
 	/* * * * * PROGRAM 2 ASSIGNMENT * * * * */
 	std::shared_ptr<TriangleMesh> mesh;
-    const int *v;
+    const int *v = nullptr;
     int faceIndex;
 
     bool SupportsSubdivision() const;
-    bool Subdivide(const float &, int&, int&, Point3f* p = nullptr);
     int CountSubdivisions(const float&, Point3f* p = nullptr);
 
   private:

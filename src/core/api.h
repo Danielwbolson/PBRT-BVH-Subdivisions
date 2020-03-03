@@ -41,6 +41,7 @@
 
 // core/api.h*
 #include "pbrt.h"
+#include "geometry.h"
 
 namespace pbrt {
 
@@ -93,8 +94,10 @@ void pbrtParseFile(std::string filename);
 void pbrtParseString(std::string str);
 
 /* * * * * * PROGRAM 2 ASSIGNMENT * * * * */
-void CountSubdivisions(std::vector<int>&);
-void SubdivideTriangles(std::vector<std::shared_ptr<Primitive>> &, const std::vector<int>&);
+void CountSubdivisions(std::vector<int>&, std::vector<int>&);
+void Subdivide(std::vector<std::shared_ptr<Primitive>> &, const std::vector<int>&, const std::vector<int>&);
+bool SubdivideTriangle(const std::shared_ptr<Triangle>&, int&, int&, 
+	std::shared_ptr<TriangleMesh>&, std::vector<std::shared_ptr<Shape>>&, Point3f* p = nullptr, int* ind = nullptr);
 
 }  // namespace pbrt
 

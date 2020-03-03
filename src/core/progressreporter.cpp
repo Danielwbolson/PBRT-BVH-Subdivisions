@@ -44,6 +44,7 @@
 #endif  // !PBRT_IS_WINDOWS
 
 namespace pbrt {
+	
 
 static int TerminalWidth();
 
@@ -144,6 +145,16 @@ void ProgressReporter::PrintBar() {
             printf(" (%.1fs|?s)  ", seconds);
         fflush(stdout);
     }
+}
+
+Float ProgressReporter::ElapsedMS() const {
+	std::chrono::system_clock::time_point now =
+		std::chrono::system_clock::now();
+	renderTime =
+		std::chrono::duration_cast<std::chrono::milliseconds>(now -
+			startTime)
+		.count();
+	return (Float)renderTime;
 }
 
 void ProgressReporter::Done() {
